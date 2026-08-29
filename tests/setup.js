@@ -1,7 +1,8 @@
 import { config } from '@vue/test-utils'
+import { vi } from 'vitest'
 
-// Global test configuration
 config.global.stubs = {
-  // Stub RouterLink if using Vue Router
-  RouterLink: true
+  RouterLink: { template: '<a><slot /></a>' }
 }
+
+window.alert = vi.fn()

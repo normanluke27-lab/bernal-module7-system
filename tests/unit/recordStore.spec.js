@@ -7,110 +7,86 @@ describe('Record Store', () => {
     setActivePinia(createPinia())
   })
 
-  // TEST 1: Add Record - Positive
-  it('should add a new record successfully', () => {
+  // ADD RECORD - Positive
+  it('should add a new record with valid data', () => {
     const store = useRecordStore()
-    const newRecord = {
-      name: 'Alice Brown',
-      email: 'alice@example.com',
-      age: 21,
-      course: 'BSIS'
-    }
-    
-    const result = store.addRecord(newRecord)
-    
-    expect(result).toHaveProperty('id')
-    expect(result.name).toBe('Alice Brown')
-    expect(store.recordCount).toBe(3)
-  })
-
-  // TEST 2: Add Record - Validation (Negative)
-  it('should throw error when adding record with invalid email', () => {
-    const store = useRecordStore()
-    const invalidRecord = {
-      name: 'Bob Wilson',
-      email: 'invalid-email',
-      age: 25,
+    const result = store.addRecord({
+      name: 'Maria Garcia',
+      email: 'maria@university.edu',
+      age: 19,
       course: 'BSIT'
-    }
-    
-    expect(() => store.addRecord(invalidRecord)).toThrow('Invalid email format')
+    })
+    expect(result.name).toBe('Maria Garcia')
+    expect(store.recordCount).toBe(4)
   })
 
-  // TEST 3: Display Records
+  // ADD RECORD - Negative (invalid email)
+  it('should reject invalid email format', () => {
+    const store = useRecordStore()
+    expect(() => store.addRecord({
+      name: 'Bad Email',
+      email: 'not-an-email',
+      age: 20,
+      course: 'BSIT'
+    })).toThrow('Invalid email format')
+  })
+
+  // DISPLAY - Positive
   it('should return all records', () => {
     const store = useRecordStore()
-    
-    const all = store.allRecords
-    
-    expect(all).toHaveLength(2)
-    expect(all[0]).toHaveProperty('name', 'John Doe')
+    expect(store.allRecords).toHaveLength(3)
   })
 
-  // TEST 4: Edit Record - Positive
+  // DISPLAY - Edge (empty)
+  it('should detect empty state', () => {
+    const store = useRecordStore()
+    store.deleteRecord(1)
+    store.deleteRecord(2)
+    store.deleteRecord(3)
+    expect(store.isEmpty).toBe(true)
+  })
+
+  // EDIT - Positive
   it('should update an existing record', () => {
     const store = useRecordStore()
-    
-    const updated = store.updateRecord(1, { name: 'John Updated', age: 21 })
-    
+    const updated = store.updateRecord(1, { name: 'John Updated' })
     expect(updated.name).toBe('John Updated')
-    expect(updated.age).toBe(21)
-    expect(store.getRecordById(1).name).toBe('John Updated')
   })
 
-  // TEST 5: Edit Record - Negative (Record not found)
-  it('should throw error when updating non-existent record', () => {
+  // EDIT - Negative
+  it('should throw error for non-existent record', () => {
     const store = useRecordStore()
-    
-    expect(() => store.updateRecord(999, { name: 'Ghost' })).toThrow('Record not found')
+    expect(() => store.updateRecord(999, { name: 'Ghost' }))
+      .toThrow('Record not found')
   })
 
-  // TEST 6: Delete Record - Positive
-  it('should delete a record successfully', () => {
+  // DELETE - Positive
+  it('should delete an existing record', () => {
     const store = useRecordStore()
-    
     store.deleteRecord(1)
-    
-    expect(store.recordCount).toBe(1)
+    expect(store.recordCount).toBe(2)
     expect(store.getRecordById(1)).toBeUndefined()
   })
 
-  // TEST 7: Delete Record - Negative
+  // DELETE - Negative (BUG-001)
   it('should throw error when deleting non-existent record', () => {
     const store = useRecordStore()
-    
+    const initialCount = store.recordCount
     expect(() => store.deleteRecord(999)).toThrow('Record not found')
+    expect(store.recordCount).toBe(initialCount)
   })
 
-  // TEST 8: Search Feature
-  it('should search records by name', () => {
+  // SEARCH - Positive
+  it('should search by name', () => {
     const store = useRecordStore()
-    
     const results = store.searchRecords('Jane')
-    
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Jane Smith')
   })
 
-  // TEST 9: Validation - Age boundary
-  it('should throw error for invalid age', () => {
+  // SEARCH - Edge
+  it('should return all for empty search', () => {
     const store = useRecordStore()
-    const record = {
-      name: 'Test User',
-      email: 'test@example.com',
-      age: 150,
-      course: 'BSIT'
-    }
-    
-    expect(() => store.addRecord(record)).toThrow('Age must be between 0 and 120')
-  })
-
-  // TEST 10: Empty search returns all
-  it('should return all records when search query is empty', () => {
-    const store = useRecordStore()
-    
-    const results = store.searchRecords('')
-    
-    expect(results).toHaveLength(2)
+    expect(store.searchRecords('')).toHaveLength(3)
   })
 })

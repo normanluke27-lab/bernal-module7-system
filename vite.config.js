@@ -4,13 +4,11 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue()],
-  
   test: {
     environment: 'happy-dom',
-    globals: true,
-    setupFiles: ['test/setup.js']  // <-- no ./ prefix
+    globals: true
+    // setupFiles removed - not needed for basic tests
   },
-  
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')
