@@ -1,9 +1,22 @@
-<<<<<<< HEAD
-# Vue 3 + Vite
+# SmartStock — Inventory Management System
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+**Student:** [Your Full Name]  
+**Course & Section:** BSCS 3B  
+**Subject:** Software Engineering 1  
+**Module:** Module 7 — Design and Implementation  
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
-=======
-# bernal-module7-system
->>>>>>> 48c43d0604685f4cfb75600f67090bcba2d84999
+## System Description
+
+SmartStock is a web-based inventory management system for small to medium-sized businesses. This prototype implements the **Products** entity from the Module 6 architectural design.
+
+## Technologies Used
+- Vue.js 3 + Vite
+- Tailwind CSS v4
+- JavaScript
+- localStorage
+- Git + GitHub
+
+## Installation
+```bash
+npm install
+npm run dev
