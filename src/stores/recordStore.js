@@ -1,146 +1,275 @@
+/**
+ * SmartStock Inventory Store (Pinia - Composition API)
+ * Module 8: Software Testing
+ *
+ * Features:
+ *   - Add Product
+ *   - Display Products
+ *   - Edit/Update Product
+ *   - Delete Product
+ *   - Search/Filter Products
+ *   - Stock status auto-calculation
+ *
+ * BUG-001 FIX: deleteProduct() now validates existence before deletion.
+ * Before fix: Used filter() which silently did nothing for bad IDs,
+ *             then showed false "deleted successfully" message.
+ * After fix:  Uses findIndex() + guard clause. Throws error if not found.
+ */
+
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export const useRecordStore = defineStore('records', () => {
-  // State
-  const records = ref([
-    { id: 1, name: 'John Doe', email: 'john@example.com', age: 20, course: 'BSIT' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', age: 22, course: 'BSCS' },
-    { id: 3, name: 'Robert Johnson', email: 'robert@example.com', age: 21, course: 'BSIS' }
-  ])
-  const nextId = ref(4)
+const STORAGE_KEY = 'smartstock-products'
 
-  // Getters
-  const allRecords = computed(() => [...records.value].sort((a, b) => a.id - b.id))
-  const recordCount = computed(() => records.value.length)
-  const isEmpty = computed(() => records.value.length === 0)
-  
-  const searchRecords = computed(() => (query) => {
-    if (!query || query.trim() === '') return records.value
-    const q = query.toLowerCase().trim()
-    return records.value.filter(r => 
-      r.name.toLowerCase().includes(q) ||
-      r.email.toLowerCase().includes(q) ||
-      r.course.toLowerCase().includes(q)
+export const useRecordStore = defineStore('inventory', () => {
+  // ═══════════════════════════════════════════════════════
+  // STATE
+  // ═══════════════════════════════════════════════════════
+  const products = ref([])
+  const editingId = ref(null)
+  const feedback = ref({ message: '', type: '' })
+  const searchQuery = ref('')
+
+  // ═══════════════════════════════════════════════════════
+  // GETTERS (Computed)
+  // ═══════════════════════════════════════════════════════
+  const allProducts = computed(() => products.value)
+
+  const productCount = computed(() => products.value.length)
+
+  const isEmpty = computed(() => products.value.length === 0)
+
+  const editingProduct = computed(() => {
+    return editingId.value
+      ? products.value.find(p => p.id === editingId.value)
+      : null
+  })
+
+  const existingProductIds = computed(() => {
+    return products.value.map(p => p.productId.toLowerCase())
+  })
+
+  const filteredProducts = computed(() => {
+    if (!searchQuery.value || searchQuery.value.trim() === '') {
+      return products.value
+    }
+    const q = searchQuery.value.toLowerCase().trim()
+    return products.value.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.productId.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q)
     )
   })
 
-  // Actions
-  function addRecord(record) {
-    if (!record.name || record.name.trim() === '') {
-      throw new Error('Name is required')
+  const inStockCount = computed(() =>
+    products.value.filter(p => p.status === 'In Stock').length
+  )
+
+  const lowStockCount = computed(() =>
+    products.value.filter(p => p.status === 'Low Stock').length
+  )
+
+  const outOfStockCount = computed(() =>
+    products.value.filter(p => p.status === 'Out of Stock').length
+  )
+
+  // ═══════════════════════════════════════════════════════
+  // PERSISTENCE
+  // ═══════════════════════════════════════════════════════
+  function loadFromStorage() {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try {
+        products.value = JSON.parse(saved)
+      } catch (e) {
+        products.value = []
+      }
     }
-    if (!record.email || record.email.trim() === '') {
-      throw new Error('Email is required')
+  }
+
+  function saveToStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(products.value))
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // FEEDBACK
+  // ═══════════════════════════════════════════════════════
+  function showFeedback(message, type) {
+    feedback.value = { message, type }
+    setTimeout(() => {
+      feedback.value = { message: '', type: '' }
+    }, 3000)
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // VALIDATION
+  // ═══════════════════════════════════════════════════════
+  function validateProduct(product, isUpdate = false) {
+    if (!product.name || product.name.trim() === '') {
+      throw new Error('Product name is required')
     }
-    if (!record.course || record.course.trim() === '') {
-      throw new Error('Course is required')
+    if (product.name.trim().length < 2) {
+      throw new Error('Product name must be at least 2 characters')
     }
-    if (!isValidEmail(record.email)) {
-      throw new Error('Invalid email format')
+    if (!product.productId || product.productId.trim() === '') {
+      throw new Error('Product ID is required')
     }
-    if (typeof record.age !== 'number' || isNaN(record.age)) {
-      throw new Error('Age must be a number')
+    if (!product.category || product.category.trim() === '') {
+      throw new Error('Category is required')
     }
-    if (record.age < 0) {
-      throw new Error('Age cannot be negative')
+    if (typeof product.qty !== 'number' || isNaN(product.qty)) {
+      throw new Error('Quantity must be a number')
     }
-    if (record.age > 120) {
-      throw new Error('Age must be 120 or below')
+    if (product.qty < 0) {
+      throw new Error('Quantity cannot be negative')
     }
-    if (record.name.trim().length < 2) {
-      throw new Error('Name must be at least 2 characters')
+    if (typeof product.price !== 'number' || isNaN(product.price)) {
+      throw new Error('Price must be a number')
     }
-    const dup = records.value.find(r => r.email.toLowerCase() === record.email.toLowerCase())
+    if (product.price < 0) {
+      throw new Error('Price cannot be negative')
+    }
+    // Check duplicate productId
+    const dup = products.value.find(p =>
+      p.productId.toLowerCase() === product.productId.toLowerCase() &&
+      p.id !== product.id
+    )
     if (dup) {
-      throw new Error('Email already exists')
+      throw new Error('Product ID already exists')
     }
-
-    const newRecord = {
-      id: nextId.value++,
-      name: record.name.trim(),
-      email: record.email.trim().toLowerCase(),
-      age: record.age,
-      course: record.course.trim().toUpperCase()
-    }
-    records.value.push(newRecord)
-    return newRecord
   }
 
-  function updateRecord(id, updatedData) {
-    const index = records.value.findIndex(r => r.id === id)
-    if (index === -1) {
-      throw new Error('Record not found')
-    }
-    if (updatedData.email !== undefined) {
-      if (!updatedData.email || updatedData.email.trim() === '') {
-        throw new Error('Email cannot be empty')
-      }
-      if (!isValidEmail(updatedData.email)) {
-        throw new Error('Invalid email format')
-      }
-      const dup = records.value.find(r => r.id !== id && r.email.toLowerCase() === updatedData.email.toLowerCase())
-      if (dup) {
-        throw new Error('Email already exists')
-      }
-    }
-    if (updatedData.age !== undefined) {
-      if (typeof updatedData.age !== 'number' || isNaN(updatedData.age)) {
-        throw new Error('Age must be a number')
-      }
-      if (updatedData.age < 0) {
-        throw new Error('Age cannot be negative')
-      }
-      if (updatedData.age > 120) {
-        throw new Error('Age must be 120 or below')
-      }
-    }
-    if (updatedData.name !== undefined) {
-      if (updatedData.name.trim().length < 2) {
-        throw new Error('Name must be at least 2 characters')
-      }
-    }
-    records.value[index] = { ...records.value[index], ...updatedData }
-    return records.value[index]
+  // ═══════════════════════════════════════════════════════
+  // HELPER: Compute stock status
+  // ═══════════════════════════════════════════════════════
+  function computeStatus(qty) {
+    if (qty === 0) return 'Out of Stock'
+    if (qty <= 5) return 'Low Stock'
+    return 'In Stock'
   }
 
-  // BUG-001 FIX: Added guard clause
-  function deleteRecord(id) {
-    const index = records.value.findIndex(r => r.id === id)
-    if (index === -1) {
-      throw new Error('Record not found')
+  // ═══════════════════════════════════════════════════════
+  // ACTION: ADD PRODUCT
+  // ═══════════════════════════════════════════════════════
+  function addProduct(newProduct) {
+    validateProduct(newProduct)
+
+    const product = {
+      id: Date.now().toString(),
+      name: newProduct.name.trim(),
+      productId: newProduct.productId.trim(),
+      category: newProduct.category.trim(),
+      qty: newProduct.qty,
+      price: newProduct.price,
+      status: computeStatus(newProduct.qty)
     }
-    records.value.splice(index, 1)
+
+    products.value.push(product)
+    saveToStorage()
+    showFeedback('Product added successfully', 'success')
+    return product
   }
 
-  function getRecordById(id) {
-    return records.value.find(r => r.id === id)
+  // ═══════════════════════════════════════════════════════
+  // ACTION: START EDIT
+  // ═══════════════════════════════════════════════════════
+  function startEdit(product) {
+    editingId.value = product.id
   }
 
-  function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  // ═══════════════════════════════════════════════════════
+  // ACTION: CANCEL EDIT
+  // ═══════════════════════════════════════════════════════
+  function cancelEdit() {
+    editingId.value = null
   }
 
-  function resetStore() {
-    records.value = [
-      { id: 1, name: 'John Doe', email: 'john@example.com', age: 20, course: 'BSIT' },
-      { id: 2, name: 'Jane Smith', email: 'jane@example.com', age: 22, course: 'BSCS' },
-      { id: 3, name: 'Robert Johnson', email: 'robert@example.com', age: 21, course: 'BSIS' }
-    ]
-    nextId.value = 4
+  // ═══════════════════════════════════════════════════════
+  // ACTION: UPDATE PRODUCT
+  // ═══════════════════════════════════════════════════════
+  function updateProduct(updatedProduct) {
+    const idx = products.value.findIndex(p => p.id === updatedProduct.id)
+    if (idx === -1) {
+      throw new Error('Product not found')
+    }
+
+    validateProduct(updatedProduct, true)
+
+    products.value[idx] = {
+      ...updatedProduct,
+      status: computeStatus(updatedProduct.qty)
+    }
+
+    saveToStorage()
+    showFeedback('Product updated successfully', 'success')
+    editingId.value = null
+    return products.value[idx]
   }
 
+  // ═══════════════════════════════════════════════════════
+  // ACTION: DELETE PRODUCT
+  // ═══════════════════════════════════════════════════════
+  // BUG-001 FIX:
+  // Before: filter() silently returned same array for bad IDs,
+  //         then showed false success message.
+  // After:  findIndex() checks existence. Throws if not found.
+  // ═══════════════════════════════════════════════════════
+  function deleteProduct(id) {
+    const idx = products.value.findIndex(p => p.id === id)
+    if (idx === -1) {
+      throw new Error('Product not found')
+    }
+    products.value.splice(idx, 1)
+    saveToStorage()
+    showFeedback('Product deleted successfully', 'success')
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // ACTION: SEARCH
+  // ═══════════════════════════════════════════════════════
+  function setSearchQuery(query) {
+    searchQuery.value = query
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // RESET (for testing)
+  // ═══════════════════════════════════════════════════════
+  function resetStore(testData = []) {
+    products.value = testData
+    editingId.value = null
+    feedback.value = { message: '', type: '' }
+    searchQuery.value = ''
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // RETURN EVERYTHING
+  // ═══════════════════════════════════════════════════════
   return {
-    records,
-    allRecords,
-    recordCount,
+    // State
+    products,
+    editingId,
+    feedback,
+    searchQuery,
+    // Getters
+    allProducts,
+    productCount,
     isEmpty,
-    searchRecords,
-    addRecord,
-    updateRecord,
-    deleteRecord,
-    getRecordById,
-    isValidEmail,
+    editingProduct,
+    existingProductIds,
+    filteredProducts,
+    inStockCount,
+    lowStockCount,
+    outOfStockCount,
+    // Persistence
+    loadFromStorage,
+    // Actions
+    addProduct,
+    startEdit,
+    cancelEdit,
+    updateProduct,
+    deleteProduct,
+    setSearchQuery,
+    // Test utility
     resetStore
   }
 })

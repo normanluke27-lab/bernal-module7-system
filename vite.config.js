@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     environment: 'happy-dom',
-    globals: true
-    // setupFiles removed - not needed for basic tests
+    globals: true,
+    setupFiles: ['tests/setup.js']
   },
   resolve: {
     alias: {
